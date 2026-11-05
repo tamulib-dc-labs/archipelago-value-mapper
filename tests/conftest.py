@@ -52,13 +52,14 @@ class FakeSite:
     a test can change `nodes` to stand for an edit made after the find.
     """
 
-    def __init__(self, mock, nodes, patch_status=None, endpoint_status=200):
+    def __init__(self, mock, nodes, patch_status=None, endpoint_status=200, endpoint_error="nope"):
         self.nodes = {n["id"]: n for n in nodes}
         self.listing = copy.deepcopy(nodes)
         self.patches = []
         self.endpoint_calls = []
         self.patch_status = patch_status or {}
         self.endpoint_status = endpoint_status
+        self.endpoint_error = endpoint_error
         mock.add_callback(responses.GET, f"{BASE}/api/metadata-values", self.metadata_values)
         mock.add_callback(responses.GET, re.compile(rf"{re.escape(BASE)}/jsonapi/node/\w+/[\w-]+"), self.get_node)
         mock.add_callback(responses.PATCH, re.compile(rf"{re.escape(BASE)}/jsonapi/node/\w+/[\w-]+"), self.patch)
@@ -67,7 +68,7 @@ class FakeSite:
         params = {key: values[0] for key, values in parse_qs(urlparse(request.url).query).items()}
         self.endpoint_calls.append(params)
         if self.endpoint_status != 200:
-            return self.endpoint_status, {}, json.dumps({"error": "nope"})
+            return self.endpoint_status, {}, json.dumps({"error": self.endpoint_error})
         keys = params["keys"].split(",")
         after, limit = int(params["after"]), int(params["limit"])
         rows = []

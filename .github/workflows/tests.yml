@@ -14,9 +14,9 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -28,8 +28,12 @@ jobs:
           uv run ruff check
           uv run ruff format --check
 
+      # In the official PHP image, so the check does not depend on the runner
+      # image shipping PHP.
       - name: Check the Drupal module's PHP syntax
-        run: find drupal -name '*.php' -print0 | xargs -0 -n1 php -l
+        run: >-
+          docker run --rm -v "$PWD/drupal:/drupal" -w /drupal php:8.3-cli
+          sh -c "find . -name '*.php' -print0 | xargs -0 -n1 php -l"
 
       - name: Test
         run: uv run pytest
