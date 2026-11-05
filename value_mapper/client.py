@@ -74,6 +74,8 @@ class Ado:
     nid: int | None
     title: str | None
     metadata: dict[str, Any] = field(default_factory=dict)
+    # The node's published flag; None when the site did not say.
+    published: bool | None = None
 
 
 def credential_variables_for(instance: Instance) -> tuple[str, str]:
@@ -139,8 +141,9 @@ class ArchipelagoClient:
         """
         Every ADO holding any of `keys`, from the tamu_metadata_api endpoint.
 
-        `metadata` holds only the requested keys the ADO has. Pages follow
-        `next` until the endpoint returns null.
+        `metadata` holds only the requested keys the ADO has, and `published`
+        is None if the site runs a version of the module from before it
+        reported it. Pages follow `next` until the endpoint returns null.
         """
         url = f"{self.base}{METADATA_VALUES_PATH}"
         keys = ",".join(keys)
@@ -152,7 +155,14 @@ class ArchipelagoClient:
                 headers={"Accept": "application/json"},
             )
             for row in document.get("rows") or []:
-                yield Ado(row["bundle"], row["uuid"], row["nid"], row.get("title"), row.get("metadata") or {})
+                yield Ado(
+                    row["bundle"],
+                    row["uuid"],
+                    row["nid"],
+                    row.get("title"),
+                    row.get("metadata") or {},
+                    row.get("published"),
+                )
             after = document.get("next")
 
     @staticmethod
@@ -175,7 +185,14 @@ class ArchipelagoClient:
             metadata = {}
         if not isinstance(metadata, dict):
             raise ValueError("field_descriptive_metadata is not a JSON object")
-        return Ado(bundle, node.get("id"), attributes.get("drupal_internal__nid"), attributes.get("title"), metadata)
+        return Ado(
+            bundle,
+            node.get("id"),
+            attributes.get("drupal_internal__nid"),
+            attributes.get("title"),
+            metadata,
+            attributes.get("status"),
+        )
 
     def get_ado(self, bundle: str, uuid: str) -> Ado:
         """Read one ADO fresh, with its whole metadata document."""

@@ -13,10 +13,12 @@ use Symfony\Component\HttpFoundation\Request;
  *
  * GET /api/metadata-values?keys=subject,creator&after=0&limit=5000
  *
- * Returns {"rows": [{"nid", "uuid", "bundle", "title", "metadata": {...}}],
+ * Returns {"rows": [{"nid", "uuid", "bundle", "title", "published",
+ * "metadata": {...}}],
  * "next": <nid to pass as "after" for the next page, or null when done>}.
  * Only Digital Objects holding at least one of the keys are listed, and
- * "metadata" holds only the keys each one actually has.
+ * "metadata" holds only the keys each one actually has. "published" is the
+ * node's published flag, so a caller can leave unpublished ADOs alone.
  *
  * One read-only query per page against the Strawberry Field table, so a
  * whole repository comes back in a handful of requests. JSON:API caps a page
@@ -87,7 +89,7 @@ class MetadataValuesController extends ControllerBase {
       $args[":path$index"] = '$.' . $key;
       $args[":has$index"] = '$.' . $key;
     }
-    $sql = 'SELECT m.entity_id AS nid, m.bundle, n.uuid, d.title, ' . implode(', ', $selected)
+    $sql = 'SELECT m.entity_id AS nid, m.bundle, n.uuid, d.title, d.status, ' . implode(', ', $selected)
       . ' FROM {node__field_descriptive_metadata} m'
       . ' INNER JOIN {node} n ON n.nid = m.entity_id'
       . ' LEFT JOIN {node_field_data} d ON d.nid = m.entity_id AND d.langcode = m.langcode'
@@ -116,6 +118,7 @@ class MetadataValuesController extends ControllerBase {
         'uuid' => $record->uuid,
         'bundle' => $record->bundle,
         'title' => $record->title,
+        'published' => (int) $record->status === 1,
         'metadata' => $metadata,
       ];
     }

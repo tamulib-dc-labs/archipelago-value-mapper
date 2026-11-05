@@ -4,7 +4,7 @@ import pytest
 from conftest import make_workbook, node
 from python_calamine import CalamineWorkbook
 
-from value_mapper.client import ArchipelagoClient, Instance, MissingCredentials
+from value_mapper.client import ArchipelagoClient, ArchipelagoError, Instance, MissingCredentials
 from value_mapper.mapping import KEYS, get_metadata, update_metadata
 
 NODES = [
@@ -88,3 +88,57 @@ def test_missing_credentials_refused_before_any_request(http, tmp_path):
     with pytest.raises(MissingCredentials):
         update_metadata(workbook, report_path=None, client=ArchipelagoClient(Instance.prod))
     assert len(http.calls) == 0
+
+
+def unpublished_site(make_site):
+    return make_site([node("a", 1, {"subject": ["Texas"]}), node("b", 2, {"subject": ["Texas"]}, published=False)])
+
+
+def test_unpublished_ados_are_skipped_by_default(make_site, client, tmp_path):
+    site = unpublished_site(make_site)
+    workbook = make_workbook(tmp_path / "m.xlsx", {"subject": [("Texas", "TX", 1, 1)]})
+    result = update_metadata(workbook, report_path=tmp_path / "r.csv", client=client)
+    assert [uuid for uuid, _ in site.patches] == ["a"]
+    assert (result.candidates, result.updated, result.unpublished, result.errors) == (1, 1, 1, 0)
+    with open(tmp_path / "r.csv", newline="", encoding="utf-8") as handle:
+        assert {row["uuid"]: row["status"] for row in csv.DictReader(handle)} == {
+            "a": "ok",
+            "b": "skipped: not published",
+        }
+
+
+def test_dry_run_reports_unpublished_as_skipped(make_site, client, tmp_path):
+    site = unpublished_site(make_site)
+    workbook = make_workbook(tmp_path / "m.xlsx", {"subject": [("Texas", "TX", 1, 1)]})
+    result = update_metadata(workbook, dry_run=True, report_path=None, client=client)
+    assert site.patches == []
+    assert {r["uuid"]: r["status"] for r in result.records} == {"a": "dry run", "b": "skipped: not published"}
+    assert (result.candidates, result.unpublished) == (1, 1)
+
+
+def test_include_unpublished_writes_them_too(make_site, client, tmp_path):
+    site = unpublished_site(make_site)
+    workbook = make_workbook(tmp_path / "m.xlsx", {"subject": [("Texas", "TX", 1, 1)]})
+    result = update_metadata(workbook, report_path=None, client=client, include_unpublished=True)
+    assert [uuid for uuid, _ in site.patches] == ["a", "b"]
+    assert (result.updated, result.unpublished) == (2, 0)
+    assert site.nodes["b"]["attributes"]["status"] is False
+
+
+def test_ado_unpublished_since_the_find_is_skipped(site, client, tmp_path):
+    site.nodes["a"] = node("a", 1, {"subject": ["Texas"]}, published=False)
+    workbook = make_workbook(tmp_path / "m.xlsx", {"subject": [("Texas", "TX", 1, 1)]})
+    result = update_metadata(workbook, report_path=None, client=client)
+    assert site.patches == []
+    assert [r["status"] for r in result.records] == ["skipped: not published"]
+    assert (result.updated, result.unpublished) == (0, 1)
+
+
+def test_site_that_does_not_report_published_is_refused(make_site, client, tmp_path):
+    site = make_site([node("a", 1, {"subject": ["Texas"]})], reports_published=False)
+    workbook = make_workbook(tmp_path / "m.xlsx", {"subject": [("Texas", "TX", 1, 1)]})
+    with pytest.raises(ArchipelagoError, match="update the tamu_metadata_api module"):
+        update_metadata(workbook, report_path=None, client=client)
+    assert site.patches == []
+    result = update_metadata(workbook, report_path=None, client=client, include_unpublished=True)
+    assert result.updated == 1

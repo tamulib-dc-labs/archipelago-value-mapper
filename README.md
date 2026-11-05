@@ -63,8 +63,10 @@ Every sheet also has `ado_count`, the number of ADOs holding the value, and `exa
 ```
 value-mapper update -x mapping.xlsx -i prod --dry-run
 value-mapper update -x mapping.xlsx -i prod
+value-mapper update -x mapping.xlsx -i prod --include-unpublished
 ```
 
+- **Only published ADOs are updated.** Unpublished ones are left alone and listed in the report as `skipped: not published`; add `--include-unpublished` to update them too. The status is checked when the ADOs are found and again just before each write.
 - **A row with every target cell blank is ignored.**
 - **Only the filled target cells change.** Fill just `target_uri` to fix a URI and keep the label.
 - For `agent` and `agent_linked_data` the role is part of the match, so a name that appears with two roles is two rows.
@@ -77,7 +79,7 @@ It runs in two steps:
 1. **Find** (the metadata endpoint, a few requests): read only the mapped keys for every ADO and keep the ones where a filled row matches. Matching uses the same code as the write, so the find and the write always agree. `--dry-run` stops here.
 2. **Write** (JSON:API, one ADO at a time): for each ADO found, read it fresh, apply the mapping, and send back only `field_descriptive_metadata`. An ADO already fixed since the find is skipped. Expect roughly 1–3 seconds per ADO; the time depends on how many ADOs change, not on how many there are.
 
-A report goes to `archipelago_mapping_report.csv` (`-o` to change it) with one line per changed key per ADO: old value, new value, and status (`dry run`, `ok`, or the error). The command exits with status 1 if any change failed.
+A report goes to `archipelago_mapping_report.csv` (`-o` to change it) with one line per changed key per ADO: old value, new value, and status (`dry run`, `ok`, `skipped: not published`, or the error). The command exits with status 1 if any change failed.
 
 Take a database backup before a large update on prod. Every write makes a revision, but a backup is the quick way back from a bad bulk mapping.
 
@@ -113,7 +115,7 @@ Once per site, by someone with shell access to the `esmero-php` container, as th
 
 4. Check it from your own machine: `curl -u <username> "https://<site>/api/metadata-values?keys=subject&limit=2"` should return JSON with `rows`. A `404` means the module is not enabled or the web server blocks `/api/`; a `403` means the account's role lacks the permission.
 
-To update the module later: `git -C /var/www/html/archipelago-value-mapper pull`, then `vendor/bin/drush cr`.
+To update the module later: `git -C /var/www/html/archipelago-value-mapper pull`, then `vendor/bin/drush cr`. `value-mapper update` needs a module that reports whether each ADO is published; against an older one it stops and asks for this update, unless `--include-unpublished` is given.
 
 If the site's configuration is ever re-imported from a sync folder that does not include this module, the import switches it off. Export the configuration after enabling it, or re-enable it after an import.
 

@@ -65,3 +65,18 @@ def test_error_text_is_not_read_as_markup(make_site, tmp_path):
     result = runner.invoke(app, ["get", "-o", str(tmp_path / "m.xlsx")])
     assert result.exit_code == 1
     assert 'value ["Utah" [bold]is[/bold] odd' in result.output
+
+
+def test_update_says_how_many_unpublished_were_skipped(make_site, tmp_path):
+    site = make_site([node("a", 1, {"subject": ["Texas"]}, published=False)])
+    workbook = make_workbook(tmp_path / "m.xlsx", {"subject": [("Texas", "TX", 1, 1)]})
+    result = runner.invoke(app, ["update", "-x", str(workbook), "-o", str(tmp_path / "r.csv")])
+    assert result.exit_code == 0, result.output
+    assert "Updated 0 of 0 ADO(s)" in result.output
+    assert "Skipped 1 unpublished ADO(s); pass --include-unpublished to update them too" in result.output
+    assert site.patches == []
+
+    result = runner.invoke(app, ["update", "-x", str(workbook), "-o", str(tmp_path / "r.csv"), "--include-unpublished"])
+    assert result.exit_code == 0, result.output
+    assert "Updated 1 of 1 ADO(s)" in result.output
+    assert "Skipped" not in result.output
