@@ -14,15 +14,16 @@ def test_help_lists_both_commands():
 
 def test_get_prints_summary(make_site, tmp_path):
     make_site([node("a", 1, {"subject": ["Texas"]})])
-    result = runner.invoke(app, ["get", "-o", str(tmp_path / "m.xlsx"), "-k", "subject"])
+    result = runner.invoke(app, ["get", "-o", str(tmp_path / "m.xlsx")])
     assert result.exit_code == 0, result.output
     assert "Read 1 ADO(s)" in result.output
     assert (tmp_path / "m.xlsx").is_file()
 
 
-def test_unknown_key_is_rejected_by_the_cli():
-    result = runner.invoke(app, ["get", "-k", "label"])
+def test_get_has_no_key_option():
+    result = runner.invoke(app, ["get", "-k", "subject"])
     assert result.exit_code != 0
+    assert "No such option" in result.output
 
 
 def test_missing_credentials_exit_1(tmp_path):

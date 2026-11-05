@@ -45,10 +45,9 @@ The account's role needs **Read Archipelago metadata values** to read, and edit 
 
 ```
 value-mapper get -i prod -o mapping.xlsx
-value-mapper get -i prod -o subjects.xlsx -k subject -k subject_linked_data
 ```
 
-Reads every `digital_object` and `digital_object_collection` node, unpublished ones included, and writes the workbook. The keys are `creator`, `contributor`, `agent`, `subject`, `geographic_subject`, `temporal_subject`, `genre_form`, and the `_linked_data` form of each; `--key`/`-k` (repeatable) limits it.
+Reads every `digital_object` and `digital_object_collection` node, unpublished ones included, and writes the workbook with a sheet for each key: `creator`, `contributor`, `agent`, `subject`, `geographic_subject`, `temporal_subject`, `genre_form`, and the `_linked_data` form of each.
 
 | Key shape | Columns |
 |---|---|
