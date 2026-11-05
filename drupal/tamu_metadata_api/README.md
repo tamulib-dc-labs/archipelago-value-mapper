@@ -18,13 +18,13 @@ GET /api/metadata-values?keys=subject,creator&after=0&limit=5000
 {
   "rows": [
     {"nid": 12345, "uuid": "3f2a…", "bundle": "digital_object", "title": "Map of College Station",
-     "metadata": {"subject": ["Texas"], "creator": ["Smith, John"]}}
+     "published": true, "metadata": {"subject": ["Texas"], "creator": ["Smith, John"]}}
   ],
   "next": 12345
 }
 ```
 
-`next` is `null` on the last page. Only Digital Objects and Collections holding at least one of the keys are listed, unpublished ones included, and `metadata` holds only the keys each one has. A bad parameter returns `400` with an `error` message.
+`next` is `null` on the last page. Only Digital Objects and Collections holding at least one of the keys are listed, unpublished ones included, and `metadata` holds only the keys each one has. `published` is the node's published flag; `value-mapper update` uses it to leave unpublished ADOs alone. A bad parameter returns `400` with an `error` message.
 
 Each page is one read-only query on the Strawberry Field table, run through Drupal's own database connection. Nothing is written, and no SQL is taken from the request: keys come from a fixed list and every value is a query placeholder.
 

@@ -22,6 +22,7 @@ The rules for a row:
 * when two sources map to the same target on one ADO, the duplicate is dropped
 * a key stored as a single value rather than a list is written back the same way
 * any other keys on an entry (beyond value/uri/role) are carried through
+* unpublished ADOs are left alone unless ``include_unpublished`` is set
 """
 
 import csv
@@ -36,7 +37,7 @@ from typing import Any, TypeVar
 import xlsxwriter
 from python_calamine import CalamineWorkbook
 
-from .client import Ado, ArchipelagoClient, Instance
+from .client import Ado, ArchipelagoClient, ArchipelagoError, Instance
 
 T = TypeVar("T")
 
@@ -85,6 +86,8 @@ INFO_SHEET = "_info"
 
 REPORT_COLUMNS = ["nid", "uuid", "title", "key", "old value", "new value", "status"]
 
+SKIPPED_UNPUBLISHED = "skipped: not published"
+
 # Control characters an .xlsx cannot hold.
 ILLEGAL_CHARACTERS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
@@ -123,6 +126,8 @@ class UpdateResult:
     updated: int
     dry_run: bool
     report_path: Path | None = None
+    # ADOs left alone because they are not published.
+    unpublished: int = 0
     errors: int = field(init=False)
 
     def __post_init__(self):
@@ -447,9 +452,14 @@ def update_metadata(
     report_path: Path | None = Path("archipelago_mapping_report.csv"),
     client: ArchipelagoClient | None = None,
     track: Track = no_progress,
+    include_unpublished: bool = False,
 ) -> UpdateResult:
     """
     Rewrite every ADO holding a source value from `workbook` to its target.
+
+    Only published ADOs are written unless `include_unpublished` is set. The
+    others go in the report as skipped. Publication is checked at the find
+    and again on the fresh read before each write.
 
     The metadata endpoint says which ADOs hold a mapped value; only those are
     read and written through JSON:API, so Drupal still makes the revision,
@@ -463,8 +473,23 @@ def update_metadata(
     client = client or ArchipelagoClient(instance)
     client.require_auth()
 
-    candidates = find_changes(mapping, client, track)
+    found = find_changes(mapping, client, track)
+    if not include_unpublished and any(candidate.ado.published is None for candidate in found):
+        raise ArchipelagoError(
+            f"{client.base} does not say which ADOs are published, so unpublished ones cannot be left out; "
+            f"update the tamu_metadata_api module there (git pull, then drush cr), or pass --include-unpublished "
+            f"to update them too"
+        )
+
     records: list[dict[str, Any]] = []
+    candidates = []
+    unpublished = 0
+    for candidate in found:
+        if include_unpublished or candidate.ado.published:
+            candidates.append(candidate)
+        else:
+            records.extend(_records(candidate.ado, candidate.changes, SKIPPED_UNPUBLISHED))
+            unpublished += 1
     updated = 0
 
     if dry_run:
@@ -481,6 +506,11 @@ def update_metadata(
             new, changes = apply_mapping(fresh.metadata, mapping)
             if not changes:
                 # Already fixed since the find, by hand or by an earlier run.
+                continue
+            if not include_unpublished and not fresh.published:
+                # Unpublished since the find.
+                records.extend(_records(fresh, changes, SKIPPED_UNPUBLISHED))
+                unpublished += 1
                 continue
             try:
                 response = client.patch_metadata(fresh.bundle, fresh.uuid, new)
@@ -500,4 +530,6 @@ def update_metadata(
             writer.writeheader()
             writer.writerows(records)
 
-    return UpdateResult(records, len(candidates), updated, dry_run, Path(report_path) if report_path else None)
+    return UpdateResult(
+        records, len(candidates), updated, dry_run, Path(report_path) if report_path else None, unpublished
+    )

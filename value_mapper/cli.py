@@ -83,10 +83,20 @@ def update(
         "archipelago_mapping_report.csv"
     ),
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Report what would change; write nothing.")] = False,
+    include_unpublished: Annotated[
+        bool,
+        typer.Option("--include-unpublished", help="Also update unpublished ADOs; by default they are left alone."),
+    ] = False,
 ) -> None:
-    """Rewrite values to the targets filled in the workbook. Rows with every target blank are ignored."""
+    """
+    Rewrite values to the targets filled in the workbook. Rows with every target blank are ignored.
+
+    Only published ADOs are updated unless --include-unpublished is given.
+    """
     try:
-        result = update_metadata(workbook, instance, dry_run, report, track=track)
+        result = update_metadata(
+            workbook, instance, dry_run, report, track=track, include_unpublished=include_unpublished
+        )
     except (MappingWorkbookError, ArchipelagoError, requests.RequestException) as error:
         fail(error)
 
@@ -94,6 +104,11 @@ def update(
         say(console, f"Would update {result.candidates} ADO(s)")
     else:
         say(console, f"Updated {result.updated} of {result.candidates} ADO(s)")
+    if result.unpublished:
+        say(
+            console,
+            f"Skipped {result.unpublished} unpublished ADO(s); pass --include-unpublished to update them too",
+        )
     if result.errors:
         say(errors, f"[bold red]{result.errors} change(s) failed[/]; see the status column in the report")
     say(console, f"Wrote report to [bold]{escape(str(result.report_path))}[/]")

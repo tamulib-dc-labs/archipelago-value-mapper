@@ -14,7 +14,7 @@ def test_pages_until_next_is_null(make_site, client):
     site = make_site([node(f"u{i}", i, {"subject": [f"s{i}"]}) for i in range(1, 6)])
     ados = list(client.iter_metadata(["subject", "creator"], page_size=2))
     assert [ado.nid for ado in ados] == [1, 2, 3, 4, 5]
-    assert ados[0] == Ado("digital_object", "u1", 1, "t", {"subject": ["s1"]})
+    assert ados[0] == Ado("digital_object", "u1", 1, "t", {"subject": ["s1"]}, True)
     assert [call["after"] for call in site.endpoint_calls] == ["0", "2", "4"]
     assert site.endpoint_calls[0]["keys"] == "subject,creator"
 
@@ -54,7 +54,19 @@ def test_instance_picks_site_and_account(monkeypatch):
 
 def test_parse_node_decodes_the_json_string():
     ado = ArchipelagoClient.parse_node("digital_object", node("a", 7, {"subject": ["Texas"]}, title="T"))
-    assert ado == Ado("digital_object", "a", 7, "T", {"subject": ["Texas"]})
+    assert ado == Ado("digital_object", "a", 7, "T", {"subject": ["Texas"]}, True)
+
+
+def test_published_flag_is_read(make_site, client):
+    make_site([node("a", 1, {"subject": ["x"]}, published=False)])
+    assert [ado.published for ado in client.iter_metadata(["subject"])] == [False]
+    raw = node("a", 1, {"subject": ["x"]}, published=False)
+    assert ArchipelagoClient.parse_node("digital_object", raw).published is False
+
+
+def test_old_module_leaves_published_unknown(make_site, client):
+    make_site([node("a", 1, {"subject": ["x"]})], reports_published=False)
+    assert [ado.published for ado in client.iter_metadata(["subject"])] == [None]
 
 
 def test_parse_node_refuses_non_object():

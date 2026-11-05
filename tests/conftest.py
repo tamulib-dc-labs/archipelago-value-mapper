@@ -31,11 +31,12 @@ def credentials(monkeypatch):
     monkeypatch.setenv("ARCHIPELAGO_LOCAL_PASSWORD", "p")
 
 
-def node(uuid, nid, metadata, title="t"):
+def node(uuid, nid, metadata, title="t", published=True):
     return {
         "id": uuid,
         "attributes": {
             "title": title,
+            "status": published,
             "drupal_internal__nid": nid,
             "field_descriptive_metadata": {"value": json.dumps(metadata)},
         },
@@ -50,9 +51,14 @@ class FakeSite:
 
     The endpoint answers from `listing`, a snapshot taken at construction, so
     a test can change `nodes` to stand for an edit made after the find.
+    `reports_published=False` stands for a site still running the module from
+    before rows carried "published".
     """
 
-    def __init__(self, mock, nodes, patch_status=None, endpoint_status=200, endpoint_error="nope"):
+    def __init__(
+        self, mock, nodes, patch_status=None, endpoint_status=200, endpoint_error="nope", reports_published=True
+    ):
+        self.reports_published = reports_published
         self.nodes = {n["id"]: n for n in nodes}
         self.listing = copy.deepcopy(nodes)
         self.patches = []
@@ -77,15 +83,16 @@ class FakeSite:
             metadata = json.loads(attributes["field_descriptive_metadata"]["value"])
             held = {key: metadata[key] for key in keys if key in metadata}
             if attributes["drupal_internal__nid"] > after and held:
-                rows.append(
-                    {
-                        "nid": attributes["drupal_internal__nid"],
-                        "uuid": n["id"],
-                        "bundle": "digital_object",
-                        "title": attributes["title"],
-                        "metadata": held,
-                    }
-                )
+                row = {
+                    "nid": attributes["drupal_internal__nid"],
+                    "uuid": n["id"],
+                    "bundle": "digital_object",
+                    "title": attributes["title"],
+                    "metadata": held,
+                }
+                if self.reports_published:
+                    row["published"] = attributes["status"]
+                rows.append(row)
         rows = rows[:limit]
         body = {"rows": rows, "next": rows[-1]["nid"] if len(rows) == limit else None}
         return 200, {}, json.dumps(body)
@@ -103,7 +110,10 @@ class FakeSite:
         status = self.patch_status.get(uuid, 200)
         if status >= 400:
             return status, {}, json.dumps({"errors": [{"detail": "nope"}]})
-        self.nodes[uuid] = node(uuid, self.nodes[uuid]["attributes"]["drupal_internal__nid"], metadata)
+        attributes = self.nodes[uuid]["attributes"]
+        self.nodes[uuid] = node(
+            uuid, attributes["drupal_internal__nid"], metadata, attributes["title"], attributes["status"]
+        )
         return 200, {}, json.dumps({"data": self.nodes[uuid]})
 
 
