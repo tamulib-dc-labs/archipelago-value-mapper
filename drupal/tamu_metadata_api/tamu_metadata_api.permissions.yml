@@ -1,0 +1,4 @@
+read archipelago metadata values:
+  title: 'Read Archipelago metadata values'
+  description: 'List the name, subject and genre values of every Digital Object, unpublished ones included, through /api/metadata-values.'
+  restrict access: true

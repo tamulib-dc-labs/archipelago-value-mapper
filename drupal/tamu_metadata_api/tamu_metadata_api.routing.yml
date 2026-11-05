@@ -1,0 +1,11 @@
+tamu_metadata_api.values:
+  path: '/api/metadata-values'
+  defaults:
+    _controller: '\Drupal\tamu_metadata_api\Controller\MetadataValuesController::values'
+  methods: [GET]
+  requirements:
+    _permission: 'read archipelago metadata values'
+  options:
+    # A script sends a Drupal username and password; a logged-in browser works too.
+    _auth: ['basic_auth', 'cookie']
+    no_cache: TRUE

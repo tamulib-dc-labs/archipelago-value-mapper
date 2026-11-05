@@ -1,0 +1,9 @@
+name: TAMU Metadata API
+type: module
+description: 'Read-only endpoint listing the name, subject and genre values of Archipelago Digital Objects, for the archipelago-value-mapper workbook.'
+core_version_requirement: ^10 || ^11
+package: TAMU
+dependencies:
+  - drupal:node
+  - drupal:basic_auth
+  - strawberryfield:strawberryfield
