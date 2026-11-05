@@ -49,7 +49,18 @@ def test_update_with_failures_exits_1(make_site, tmp_path):
 
 
 def test_update_bad_workbook_is_a_clean_error(tmp_path):
-    workbook = make_workbook(tmp_path / "m.xlsx", {"subject": [("Texas", None, 1, 1)]})
+    # A deep folder makes the message longer than 80 columns: it must stay on
+    # one line rather than being broken mid-path.
+    deep = tmp_path / ("very-long-folder-name-" * 4)
+    deep.mkdir()
+    workbook = make_workbook(deep / "m.xlsx", {"subject": [("Texas", None, 1, 1)]})
     result = runner.invoke(app, ["update", "-x", str(workbook)])
     assert result.exit_code == 1
-    assert "nothing to do" in result.output
+    assert result.output.strip() == f"Error: no target values are filled in {workbook}; nothing to do"
+
+
+def test_error_text_is_not_read_as_markup(make_site, tmp_path):
+    make_site([], endpoint_status=400, endpoint_error='value ["Utah" [bold]is[/bold] odd')
+    result = runner.invoke(app, ["get", "-o", str(tmp_path / "m.xlsx")])
+    assert result.exit_code == 1
+    assert 'value ["Utah" [bold]is[/bold] odd' in result.output

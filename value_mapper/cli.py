@@ -8,6 +8,7 @@ from typing import Annotated, NoReturn, TypeVar
 import requests
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
@@ -43,8 +44,15 @@ def track(items: Iterable[T], label: str) -> Iterator[T]:
             progress.advance(task)
 
 
+def say(target: Console, text: str) -> None:
+    # Soft wrap: let the terminal wrap long lines rather than Rich breaking
+    # them at 80 columns, which splits paths and messages when not on a TTY.
+    target.print(text, soft_wrap=True, highlight=False)
+
+
 def fail(error: Exception) -> NoReturn:
-    errors.print(f"[bold red]Error:[/] {error}", highlight=False)
+    # Escaped: values such as ["Utah" would otherwise be read as Rich markup.
+    say(errors, f"[bold red]Error:[/] {escape(str(error))}")
     raise typer.Exit(1)
 
 
@@ -68,7 +76,7 @@ def get(
     for name, number in result.distinct.items():
         table.add_row(name, str(number))
     console.print(table)
-    console.print(f"Read {result.total} ADO(s); wrote [bold]{result.path}[/]")
+    say(console, f"Read {result.total} ADO(s); wrote [bold]{escape(str(result.path))}[/]")
 
 
 @app.command()
@@ -89,11 +97,11 @@ def update(
         fail(error)
 
     if result.dry_run:
-        console.print(f"Would update {result.candidates} ADO(s)")
+        say(console, f"Would update {result.candidates} ADO(s)")
     else:
-        console.print(f"Updated {result.updated} of {result.candidates} ADO(s)")
+        say(console, f"Updated {result.updated} of {result.candidates} ADO(s)")
     if result.errors:
-        errors.print(f"[bold red]{result.errors} change(s) failed[/]; see the status column in the report")
-    console.print(f"Wrote report to [bold]{result.report_path}[/]")
+        say(errors, f"[bold red]{result.errors} change(s) failed[/]; see the status column in the report")
+    say(console, f"Wrote report to [bold]{escape(str(result.report_path))}[/]")
     if result.errors:
         raise typer.Exit(1)
