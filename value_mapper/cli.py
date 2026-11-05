@@ -1,7 +1,6 @@
 """The value-mapper command line: ``value-mapper get`` and ``value-mapper update``."""
 
 from collections.abc import Iterable, Iterator
-from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, NoReturn, TypeVar
 
@@ -13,7 +12,7 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn
 from rich.table import Table
 
 from .client import ArchipelagoError, Instance
-from .mapping import KEYS, MappingWorkbookError, get_metadata, update_metadata
+from .mapping import MappingWorkbookError, get_metadata, update_metadata
 
 T = TypeVar("T")
 
@@ -24,8 +23,6 @@ app = typer.Typer(
 )
 console = Console()
 errors = Console(stderr=True)
-
-KeyName = StrEnum("KeyName", {key: key for key in KEYS})
 
 InstanceOption = Annotated[
     Instance, typer.Option("--instance", "-i", help="Which site: local (http://localhost:8001) or prod.")
@@ -62,13 +59,10 @@ def get(
         "archipelago_mapping.xlsx"
     ),
     instance: InstanceOption = Instance.local,
-    key: Annotated[
-        list[KeyName] | None, typer.Option("--key", "-k", help="Only this key (repeatable). Default: all of them.")
-    ] = None,
 ) -> None:
     """Write a workbook of every value, one sheet per key, with empty target columns to fill in."""
     try:
-        result = get_metadata(output, instance, [k.value for k in key] if key else None, track=track)
+        result = get_metadata(output, instance, track=track)
     except (ArchipelagoError, requests.RequestException) as error:
         fail(error)
 

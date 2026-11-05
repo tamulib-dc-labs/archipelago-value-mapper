@@ -384,25 +384,23 @@ def _read_rules(workbook: CalamineWorkbook, keys: dict[str, KeySpec]) -> Mapping
 def get_metadata(
     output: Path,
     instance: Instance = Instance.local,
-    keys: Iterable[str] | None = None,
     client: ArchipelagoClient | None = None,
     track: Track = no_progress,
 ) -> GetResult:
     """
-    Write the mapping workbook for `keys` (default: all of KEYS) from `instance`.
+    Write the mapping workbook, one sheet for each of KEYS, from `instance`.
 
     Values come from the site's /api/metadata-values endpoint, a few large
     pages in all.
     """
-    selected = {key: KEYS[key] for key in keys} if keys else KEYS
     client = client or ArchipelagoClient(instance)
     client.require_auth()
 
-    counts, total = collect_values(track(client.iter_metadata(selected), "Reading"), selected)
+    counts, total = collect_values(track(client.iter_metadata(KEYS), "Reading"), KEYS)
     write_workbook(
         output,
         counts,
-        selected,
+        KEYS,
         info={
             "source": client.base,
             "generated": datetime.now(UTC).isoformat(timespec="seconds"),
